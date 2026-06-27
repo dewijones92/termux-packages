@@ -1,6 +1,11 @@
 # L1 of the stack: build the native runtime (CPython/ffmpeg/quickjs-ng/aria2) from source,
-# targeting Android API 23, for all 4 ABIs. Artifacts (.deb + checksums) are published to a
-# GitHub Release and consumed by L3 (youtubedl-android fork).
+# targeting Android API 23. Artifacts (.deb + checksums) are published to a GitHub Release and
+# consumed by L3 (youtubedl-android fork).
+#
+# ABIs: arm64-v8a (aarch64), x86_64, x86 (i686). armeabi-v7a (32-bit ARM) is intentionally
+# NOT built — see README "Android API 23 native build": the ARM-EABI helpers (__aeabi_mem*)
+# only exist in bionic from API 24 (@LIBC_N), so an armv7 build at API 23 leaves them
+# unresolved (link failure / would crash on-device). The other three ABIs build cleanly.
 #
 # Tier-B (best-practices-lite):
 #  - CI vs CD: PRs / manual runs build+verify only; pushing a `native-v*` tag releases.
@@ -35,7 +40,7 @@ env:
   # Pinned by digest (best practice). Update deliberately, not via :latest drift.
   BUILDER_IMAGE: "ghcr.io/termux/package-builder@sha256:310b1591fe606437f58efd49803d1c3e8fcb3ef290ab7a6b99c1568df02c064f"
   # Default package set for PR/tag builds (workflow_dispatch can override via input).
-  DEFAULT_PACKAGES: "python"
+  DEFAULT_PACKAGES: "python ffmpeg quickjs-ng aria2"
 
 jobs:
   build:
@@ -47,7 +52,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target_arch: [aarch64, arm, i686, x86_64]
+        # armeabi-v7a (arm) excluded: __aeabi_mem* helpers are API-24+ in bionic. See README.
+        target_arch: [aarch64, i686, x86_64]
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

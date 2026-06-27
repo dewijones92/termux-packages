@@ -1,3 +1,40 @@
+<!-- ───────────────────────── FORK NOTE ───────────────────────── -->
+# Fork: Android API 23 (Android 6.0) native build
+
+This fork adds a workflow ([`.github/workflows/build-native-api23.yml`](.github/workflows/build-native-api23.yml))
+that builds the native runtime — **CPython, ffmpeg, quickjs-ng, aria2** — from source targeting
+**Android API 23 (Android 6.0)**, below Termux's normal API-24 floor. It's **L1** of a stack that
+runs yt-dlp on old Android (consumed by the
+[youtubedl-android fork](https://github.com/dewijones92/youtubedl-android)).
+
+The only change to make it work is pinning `TERMUX_PKG_API_LEVEL=23`: CPython's `configure` then
+feature-detects the API-24 libc functions (`lockf`, `preadv`, …) as absent and uses fallbacks, so
+the binaries have **zero undefined API-24 symbols** — no post-hoc shim needed.
+
+### Supported ABIs
+
+| ABI | Status |
+|---|---|
+| `arm64-v8a` (aarch64) | ✅ builds, 0 undefined symbols |
+| `x86_64` | ✅ builds, 0 undefined symbols |
+| `x86` (i686) | ✅ builds, 0 undefined symbols |
+| **`armeabi-v7a` (32-bit ARM)** | ❌ **not supported** — see below |
+
+### Why no `armeabi-v7a`
+
+32-bit ARM libraries reference the ARM-EABI memory helpers `__aeabi_memcpy`, `__aeabi_memset`,
+`__aeabi_memmove*`, `__aeabi_memclr*`, etc. **bionic only added these to libc at API 24**, exported
+with the `@LIBC_N` (Nougat) version tag. Building at API 23, a 32-bit lib (e.g. `libncursesw.so`)
+ends up with unresolved `__aeabi_memcpy@LIBC_N` references — the link fails (`--no-allow-shlib-undefined`),
+and even if forced it would crash on a real API-23 device, because those symbols genuinely aren't
+in API-23 bionic. The 64-bit and x86 ABIs never use `__aeabi_*`, so they build cleanly.
+
+Fixing 32-bit ARM would mean backfilling the `__aeabi_mem*` helpers (versioned `@LIBC_N`) into
+`libandroid-support`, or an older NDK — both non-trivial. Given the declining 32-bit-ARM device
+base, this fork ships **arm64-v8a + x86_64 + x86** and deliberately omits `armeabi-v7a`.
+
+<!-- ─────────────────────── END FORK NOTE ─────────────────────── -->
+
 # Termux packages
 
 ![GitHub repo size](https://img.shields.io/github/repo-size/termux/termux-packages)
