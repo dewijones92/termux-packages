@@ -8,7 +8,7 @@ termux_step_setup_variables() {
 	: "${TERMUX_PKG_MAKE_PROCESSES:="$(nproc)"}"
 	: "${TERMUX_PKGS__BUILD__RM_ALL_PKGS_BUILT_MARKER_AND_INSTALL_FILES:="true"}"
 	: "${TERMUX_PKGS__BUILD__RM_ALL_PKG_BUILD_DEPENDENT_DIRS:="false"}"
-	: "${TERMUX_PKG_API_LEVEL:="24"}"
+	: "${TERMUX_PKG_API_LEVEL:="23"}"
 	: "${TERMUX_CONTINUE_BUILD:="false"}"
 	: "${TERMUX_QUIET_BUILD:="false"}"
 	: "${TERMUX_WITHOUT_DEPVERSION_BINDING:="false"}"

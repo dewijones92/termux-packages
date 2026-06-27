@@ -1,0 +1,101 @@
+# L1 of the stack: build the native runtime (CPython/ffmpeg/quickjs-ng/aria2) from source,
+# targeting Android API 23, for all 4 ABIs. Artifacts (.deb + checksums) are published to a
+# GitHub Release and consumed by L3 (youtubedl-android fork).
+#
+# Tier-B (best-practices-lite):
+#  - CI vs CD: PRs / manual runs build+verify only; pushing a `native-v*` tag releases.
+#  - Pinning: builder image by digest, every action by commit SHA, API level pinned to 23.
+#  - Verify-gate: the Termux build runs its own undefined-symbol check and fails if any
+#    API-24+ libc symbol is left dangling — that IS L1's gate (it's why building from source
+#    for API 23 is correct). Runtime-on-emulator verification belongs to L3 (the AAR/app).
+#  - Immutable, checksummed Release assets + SLSA build-provenance attestation.
+name: Build native (API 23)
+
+on:
+  pull_request:
+    paths:
+      - "packages/python/**"
+      - "packages/ffmpeg/**"
+      - "packages/aria2/**"
+      - "packages/quickjs-ng/**"
+      - "scripts/**"
+      - ".github/workflows/build-native-api23.yml"
+  push:
+    tags:
+      - "native-v*"
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Space-separated package list to build"
+        default: "python"
+
+permissions: {}
+
+env:
+  # Pinned by digest (best practice). Update deliberately, not via :latest drift.
+  BUILDER_IMAGE: "ghcr.io/termux/package-builder@sha256:310b1591fe606437f58efd49803d1c3e8fcb3ef290ab7a6b99c1568df02c064f"
+  # Default package set for PR/tag builds (workflow_dispatch can override via input).
+  DEFAULT_PACKAGES: "python"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # CD: create the Release (tags only)
+      id-token: write # CD: provenance attestation
+      attestations: write # CD: provenance attestation
+    strategy:
+      fail-fast: false
+      matrix:
+        target_arch: [aarch64, arm, i686, x86_64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Confirm API level is pinned to 23
+        run: grep -q 'TERMUX_PKG_API_LEVEL:="23"' scripts/build/termux_step_setup_variables.sh
+
+      - name: Free disk space
+        run: ./scripts/free-space.sh
+
+      - name: Pull pinned builder image
+        run: docker pull "$BUILDER_IMAGE"
+
+      - name: Build packages (API 23, ${{ matrix.target_arch }})
+        env:
+          TERMUX_BUILDER_IMAGE_NAME: ${{ env.BUILDER_IMAGE }}
+        run: |
+          set -euo pipefail
+          PKGS="${{ github.event.inputs.packages || env.DEFAULT_PACKAGES }}"
+          echo "Building: $PKGS  (arch=${{ matrix.target_arch }}, API 23)"
+          ./scripts/run-docker.sh ./build-package.sh -I -C -a "${{ matrix.target_arch }}" $PKGS
+
+      - name: Collect artifacts + checksums
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          find output -type f -name '*.deb' -exec cp -v {} out/ \;
+          test -n "$(ls -A out)" || { echo "no .deb produced"; exit 1; }
+          ( cd out && sha256sum *.deb | sort -k2 | tee "SHA256SUMS-${{ matrix.target_arch }}.txt" )
+
+      - name: Upload build artifact (CI inspection)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-api23-${{ matrix.target_arch }}
+          path: out/
+          if-no-files-found: error
+
+      # ---------------- CD: tags only ----------------
+      - name: Attest build provenance
+        if: startsWith(github.ref, 'refs/tags/native-v')
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: "out/*.deb"
+
+      - name: Publish to Release
+        if: startsWith(github.ref, 'refs/tags/native-v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: |
+            out/*.deb
+            out/SHA256SUMS-*.txt
