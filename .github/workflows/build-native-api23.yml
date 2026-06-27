@@ -2,10 +2,10 @@
 # targeting Android API 23. Artifacts (.deb + checksums) are published to a GitHub Release and
 # consumed by L3 (youtubedl-android fork).
 #
-# ABIs: arm64-v8a (aarch64), x86_64, x86 (i686). armeabi-v7a (32-bit ARM) is intentionally
-# NOT built — see README "Android API 23 native build": the ARM-EABI helpers (__aeabi_mem*)
-# only exist in bionic from API 24 (@LIBC_N), so an armv7 build at API 23 leaves them
-# unresolved (link failure / would crash on-device). The other three ABIs build cleanly.
+# ABIs: arm64-v8a (aarch64) + x86_64 — the 64-bit ABIs, which build cleanly. Both 32-bit ABIs
+# are intentionally NOT built (see README "Android API 23 native build"): they hit 32-bit-specific
+# symbols bionic only added at API 24 — armeabi-v7a needs __aeabi_mem*; x86/i686 needs fseeko/ftello
+# (used unconditionally by libc++'s <fstream>). 64-bit ABIs never reference those, so they're clean.
 #
 # Tier-B (best-practices-lite):
 #  - CI vs CD: PRs / manual runs build+verify only; pushing a `native-v*` tag releases.
@@ -52,8 +52,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # armeabi-v7a (arm) excluded: __aeabi_mem* helpers are API-24+ in bionic. See README.
-        target_arch: [aarch64, i686, x86_64]
+        # 32-bit ABIs excluded (see README): both hit 32-bit-specific API-24 gaps at API 23 --
+        # armeabi-v7a (__aeabi_mem*) and x86/i686 (fseeko/ftello in libc++). 64-bit only.
+        target_arch: [aarch64, x86_64]
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

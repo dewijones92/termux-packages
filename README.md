@@ -17,21 +17,25 @@ the binaries have **zero undefined API-24 symbols** — no post-hoc shim needed.
 |---|---|
 | `arm64-v8a` (aarch64) | ✅ builds, 0 undefined symbols |
 | `x86_64` | ✅ builds, 0 undefined symbols |
-| `x86` (i686) | ✅ builds, 0 undefined symbols |
 | **`armeabi-v7a` (32-bit ARM)** | ❌ **not supported** — see below |
+| **`x86` (i686, 32-bit)** | ❌ **not supported** — see below |
 
-### Why no `armeabi-v7a`
+This fork ships the **64-bit ABIs only**: `arm64-v8a` (real devices) and `x86_64` (emulator).
 
-32-bit ARM libraries reference the ARM-EABI memory helpers `__aeabi_memcpy`, `__aeabi_memset`,
-`__aeabi_memmove*`, `__aeabi_memclr*`, etc. **bionic only added these to libc at API 24**, exported
-with the `@LIBC_N` (Nougat) version tag. Building at API 23, a 32-bit lib (e.g. `libncursesw.so`)
-ends up with unresolved `__aeabi_memcpy@LIBC_N` references — the link fails (`--no-allow-shlib-undefined`),
-and even if forced it would crash on a real API-23 device, because those symbols genuinely aren't
-in API-23 bionic. The 64-bit and x86 ABIs never use `__aeabi_*`, so they build cleanly.
+### Why no 32-bit ABIs
 
-Fixing 32-bit ARM would mean backfilling the `__aeabi_mem*` helpers (versioned `@LIBC_N`) into
-`libandroid-support`, or an older NDK — both non-trivial. Given the declining 32-bit-ARM device
-base, this fork ships **arm64-v8a + x86_64 + x86** and deliberately omits `armeabi-v7a`.
+Both 32-bit ABIs reference libc symbols **bionic only added at API 24** (`@LIBC_N`), used
+*unconditionally* by the toolchain / libc++, so they can't be satisfied at API 23:
+
+- **`armeabi-v7a`** — the ARM-EABI memory helpers `__aeabi_memcpy`/`memset`/`memmove*`/`memclr*`.
+  A 32-bit lib (e.g. `libncursesw.so`) ends up with unresolved `__aeabi_memcpy@LIBC_N`; the link
+  fails (`--no-allow-shlib-undefined`) and it would crash on-device even if forced.
+- **`x86` (i686)** — `fseeko`/`ftello` (large-file I/O), which libc++'s `<fstream>` uses
+  unconditionally: `error: no member named 'fseeko'` when any C++ code (e.g. aria2) includes it.
+
+The **64-bit ABIs never reference these** (64-bit `off_t` is already large; no `__aeabi_*`), so they
+build cleanly. Fixing 32-bit would mean backfilling versioned `@LIBC_N` symbols or an older NDK —
+non-trivial, and the 32-bit device base is small, so this fork omits both 32-bit ABIs.
 
 <!-- ─────────────────────── END FORK NOTE ─────────────────────── -->
 
