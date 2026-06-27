@@ -30,6 +30,13 @@ termux_step_pre_configure() {
 			termux_error_exit "SOVERSION guard check failed for libav${lib}.so. expected ${so_version}"
 		fi
 	done
+
+	# API-23: our libandroid-support backfills in6addr_any/getifaddrs/freeifaddrs/strchrnul for
+	# ffmpeg's prebuilt-for-API-24 deps (libsrt/libssh/libzmq/libidn2). Those deps reference the
+	# symbols version-tagged @LIBC_N, so lld's --no-allow-shlib-undefined rejects our unversioned
+	# definitions at link time -- but they resolve fine at runtime via libandroid-support (which is
+	# force-linked into the process), as proven by the youtubedl-android shim. Relax that one check.
+	LDFLAGS+=" -Wl,--allow-shlib-undefined"
 }
 
 termux_step_configure() {
