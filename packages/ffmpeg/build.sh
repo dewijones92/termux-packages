@@ -6,7 +6,7 @@ TERMUX_PKG_MAINTAINER="@termux"
 TERMUX_PKG_VERSION="8.1.2"
 TERMUX_PKG_SRCURL="https://www.ffmpeg.org/releases/ffmpeg-${TERMUX_PKG_VERSION}.tar.xz"
 TERMUX_PKG_SHA256=464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c
-TERMUX_PKG_DEPENDS="fontconfig, freetype, fribidi, game-music-emu, glslang, harfbuzz, libaom, libandroid-glob, libandroid-stub, libass, libbluray, libbs2b, libbz2, libdav1d, libiconv, liblzma, libmysofa, libmp3lame, libopencore-amr, libopenmpt, libopus, libplacebo, librav1e, libsoxr, libsrt, libssh, libtheora, libv4l, libvidstab, libvmaf, libvo-amrwbenc, libvorbis, libvpx, libwebp, libx264, libx265, libxml2, libzimg, libzmq, littlecms, ocl-icd, openssl, rubberband, svt-av1, vulkan-icd, xvidcore, zlib"
+TERMUX_PKG_DEPENDS="fontconfig, freetype, fribidi, game-music-emu, glslang, harfbuzz, libaom, libandroid-glob, libandroid-stub, libass, libbluray, libbs2b, libbz2, libdav1d, libiconv, liblzma, libmysofa, libmp3lame, libopencore-amr, libopenmpt, libopus, libplacebo, librav1e, libsoxr, libtheora, libv4l, libvidstab, libvmaf, libvo-amrwbenc, libvorbis, libvpx, libwebp, libx264, libx265, libxml2, libzimg, littlecms, ocl-icd, openssl, rubberband, svt-av1, vulkan-icd, xvidcore, zlib"
 TERMUX_PKG_BUILD_DEPENDS="opencl-headers, vulkan-headers"
 TERMUX_PKG_CONFLICTS="libav"
 TERMUX_PKG_BREAKS="ffmpeg-dev"
@@ -30,13 +30,6 @@ termux_step_pre_configure() {
 			termux_error_exit "SOVERSION guard check failed for libav${lib}.so. expected ${so_version}"
 		fi
 	done
-
-	# API-23: our libandroid-support backfills in6addr_any/getifaddrs/freeifaddrs/strchrnul for
-	# ffmpeg's prebuilt-for-API-24 deps (libsrt/libssh/libzmq/libidn2). Those deps reference the
-	# symbols version-tagged @LIBC_N, so lld's --no-allow-shlib-undefined rejects our unversioned
-	# definitions at link time -- but they resolve fine at runtime via libandroid-support (which is
-	# force-linked into the process), as proven by the youtubedl-android shim. Relax that one check.
-	LDFLAGS+=" -Wl,--allow-shlib-undefined"
 }
 
 termux_step_configure() {
@@ -112,8 +105,6 @@ termux_step_configure() {
 		--enable-librav1e \
 		--enable-librubberband \
 		--enable-libsoxr \
-		--enable-libsrt \
-		--enable-libssh \
 		--enable-libsvtav1 \
 		--enable-libtheora \
 		--enable-libv4l2 \
@@ -128,7 +119,6 @@ termux_step_configure() {
 		--enable-libxml2 \
 		--enable-libxvid \
 		--enable-libzimg \
-		--enable-libzmq \
 		--enable-mediacodec \
 		--enable-opencl \
 		--enable-openssl \
