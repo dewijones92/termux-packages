@@ -26,6 +26,13 @@ SYSTEM_RE='^(libc|libm|libdl|liblog|libandroid|libmediandk|libGLESv[0-9]|libEGL|
 
 needed_of() { readelf -d "$1" 2>/dev/null | awk -F'[][]' '/\(NEEDED\)/ {print $2}'; }
 
+# The build prefix is unstripped (debug symbols) — the .debs are stripped at massage time, but we
+# assemble from the prefix, so strip here too (cross-arch via llvm-strip). --strip-unneeded keeps
+# .dynsym (needed for runtime linking) while dropping debug/local symbols.
+STRIP_BIN="$(command -v llvm-strip 2>/dev/null || true)"
+[ -z "$STRIP_BIN" ] && STRIP_BIN="$(find /root /home /opt /usr -name llvm-strip -type f 2>/dev/null | head -1)"
+strip_elf() { [ -n "$STRIP_BIN" ] && "$STRIP_BIN" --strip-unneeded "$1" 2>/dev/null || true; }
+
 declare -A SEEN   # realpath -> 1
 
 # Recursively add a soname's resolved file (and its dependencies) to SEEN.
@@ -76,7 +83,29 @@ collect() {
 
   if [ "$withstdlib" = yes ]; then
     cp -a "$LIB"/python3.* "$stage/usr/lib/" 2>/dev/null || true
+    # Trim stdlib to what yt-dlp needs (mirrors what a slim runtime ships): drop the CPython test
+    # suite, GUI/dev-only packages, the static-lib config dir, any .a, and __pycache__ (regenerated
+    # at runtime in the writable PYTHONHOME). This is the bulk of the size after stripping.
+    local pydir
+    for pydir in "$stage"/usr/lib/python3.*; do
+      [ -d "$pydir" ] || continue
+      rm -rf "$pydir"/test "$pydir"/tests "$pydir"/idlelib "$pydir"/turtledemo \
+             "$pydir"/tkinter "$pydir"/lib2to3 "$pydir"/ensurepip "$pydir"/config-* 2>/dev/null || true
+    done
+    find "$stage"/usr/lib/python3.* -depth -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+    find "$stage"/usr/lib/python3.* -name '*.a' -delete 2>/dev/null || true
+    # CA bundle for SSL_CERT_FILE (youtubedl-android points SSL_CERT_FILE at usr/etc/tls/cert.pem).
+    if [ -d "$PREFIX/etc/tls" ] || [ -d "$PREFIX/etc/ca-certificates" ]; then
+      mkdir -p "$stage/usr/etc"
+      [ -d "$PREFIX/etc/tls" ] && cp -a "$PREFIX/etc/tls" "$stage/usr/etc/" || true
+      [ -d "$PREFIX/etc/ca-certificates" ] && cp -a "$PREFIX/etc/ca-certificates" "$stage/usr/etc/" || true
+    fi
   fi
+
+  # Strip every ELF in the staging tree (loaders, closure libs, python extension modules).
+  local elf
+  while IFS= read -r elf; do strip_elf "$elf"; done \
+    < <(find "$stage/usr" -type f \( -name '*.so' -o -name '*.so.*' \) ; find "$stage/usr/bin" -type f)
 
   ( cd "$stage" && tar cf "$OUT/bundle-${module}-${ARCH}.tar" usr )
   rm -rf "$stage"
