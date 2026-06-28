@@ -59,16 +59,16 @@ add_lib() {
   for n in $(needed_of "$real"); do add_lib "$n"; done
 }
 
-# collect <module> <withStdlib:yes|no> <loaderspec...>   loaderspec = loadername=binname
+# collect <bundle-name> <withStdlib:yes|no> <binname...>   (binnames = usr/bin entries to include)
 collect() {
   local module="$1" withstdlib="$2"; shift 2
   declare -gA SEEN=()              # reset closure per module
   local stage; stage="$(mktemp -d)"
   mkdir -p "$stage/usr/lib" "$stage/usr/bin"
 
-  local spec loader binname binpath n
-  for spec in "$@"; do
-    loader="${spec%%=*}"; binname="${spec##*=}"; binpath="$BIN/$binname"
+  local binname binpath n
+  for binname in "$@"; do
+    binpath="$BIN/$binname"
     [ -e "$binpath" ] || { echo "ERROR: missing $binpath" >&2; exit 1; }
     cp -a "$binpath" "$stage/usr/bin/$binname"
     for n in $(needed_of "$binpath"); do add_lib "$n"; done
@@ -129,11 +129,18 @@ collect() {
   echo "  bundle-${module}-${ARCH}.tar  ($(du -h "$OUT/bundle-${module}-${ARCH}.tar" | cut -f1), $(printf '%s' "${#SEEN[@]}") libs)"
 }
 
-echo "Assembling runtime bundles for $ARCH from $PREFIX ..."
-collect python yes python=python3.13          # interpreter + libpython + stdlib + dynload deps
-collect qjs    no  qjs=qjs                     # self-contained quickjs-ng
-collect ffmpeg no  ffmpeg=ffmpeg ffprobe=ffprobe
-collect aria2c no  aria2c=aria2c
+# Drive the bundle set from the single-source manifest (shared with L3's vendor script).
+MANIFEST="${TERMUX_BUNDLE_MANIFEST:-$(dirname "$0")/runtime-bundle-manifest.json}"
+[ -f "$MANIFEST" ] || { echo "ERROR: manifest not found: $MANIFEST" >&2; exit 1; }
+
+echo "Assembling runtime bundles for $ARCH from $PREFIX (manifest: $MANIFEST) ..."
+while IFS= read -r b; do
+  name="$(printf '%s' "$b" | jq -r '.name')"
+  stdlib="$(printf '%s' "$b" | jq -r 'if .stdlib then "yes" else "no" end')"
+  # space-separated binary names from this bundle's loaders
+  mapfile -t bins < <(printf '%s' "$b" | jq -r '.loaders[].bin')
+  collect "$name" "$stdlib" "${bins[@]}"
+done < <(jq -c '.bundles[]' "$MANIFEST")
 
 ( cd "$OUT" && sha256sum bundle-*-"$ARCH".tar | sort -k2 > "BUNDLES-SHA256-${ARCH}.txt" )
 echo "Done. Bundles + BUNDLES-SHA256-${ARCH}.txt in $OUT"

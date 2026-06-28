@@ -93,6 +93,8 @@ jobs:
           find output -type f -name '*.deb'  -exec cp -v {} out/ \;
           find output -type f -name 'bundle-*.tar' -exec cp -v {} out/ \;
           find output -type f -name 'BUNDLES-SHA256-*.txt' -exec cp -v {} out/ \;
+          # Publish the L1->L3 contract manifest alongside the bundles so L3 vendors from it.
+          cp -v scripts/runtime-bundle-manifest.json out/
           test -n "$(ls -A out)" || { echo "no artifacts produced"; exit 1; }
           # Bundles are the L3-consumed artifact and must exist for every release.
           test -n "$(ls out/bundle-*.tar 2>/dev/null)" || { echo "no runtime bundles produced"; exit 1; }
@@ -121,3 +123,4 @@ jobs:
             out/bundle-*.tar
             out/SHA256SUMS-*.txt
             out/BUNDLES-SHA256-*.txt
+            out/runtime-bundle-manifest.json

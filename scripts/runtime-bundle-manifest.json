@@ -1,0 +1,46 @@
+{
+  "_comment": "Single source of the L1->L3 runtime-bundle contract. L1 (collect-runtime-bundle.sh) reads this to know which binaries go in each bundle; L3 (youtubedl-android tools/vendor_from_native_release.sh) reads the copy published in the release to lay bundles into jniLibs. The 'out' loader names and 'zip' names MUST match the runtime constants in the youtubedl-android library (YoutubeDL.kt pythonBinName/pythonLibName/quickJsBinName, FFmpeg.kt ffmpegBinName/ffmpegLibName, Aria2c.kt aria2cLibName) and ffprobe is libffprobe.so. Keep them in sync when either side changes.",
+  "abis": {
+    "aarch64": "arm64-v8a",
+    "x86_64": "x86_64"
+  },
+  "bundles": [
+    {
+      "name": "python",
+      "module": "library",
+      "stdlib": true,
+      "zip": "libpython.zip.so",
+      "loaders": [
+        { "out": "libpython.so", "bin": "python3.13" }
+      ]
+    },
+    {
+      "name": "qjs",
+      "module": "library",
+      "stdlib": false,
+      "zip": null,
+      "loaders": [
+        { "out": "libqjs.so", "bin": "qjs" }
+      ]
+    },
+    {
+      "name": "ffmpeg",
+      "module": "ffmpeg",
+      "stdlib": false,
+      "zip": "libffmpeg.zip.so",
+      "loaders": [
+        { "out": "libffmpeg.so", "bin": "ffmpeg" },
+        { "out": "libffprobe.so", "bin": "ffprobe" }
+      ]
+    },
+    {
+      "name": "aria2c",
+      "module": "aria2c",
+      "stdlib": false,
+      "zip": "libaria2c.zip.so",
+      "loaders": [
+        { "out": "libaria2c.so", "bin": "aria2c" }
+      ]
+    }
+  ]
+}
