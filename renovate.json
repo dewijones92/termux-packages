@@ -1,0 +1,19 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":pinDigests",
+    ":semanticCommitsDisabled"
+  ],
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "enabledManagers": ["github-actions"],
+  "packageRules": [
+    {
+      "description": "Group GitHub Actions bumps for the API-23 native build workflow (all pinned by SHA).",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
+  ],
+  "_note": "Scoped to GitHub Actions only — this is the upstream Termux tree; we just maintain the native-api23 workflow. Activates once the Renovate App is enabled on the fork."
+}
