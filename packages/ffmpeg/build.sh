@@ -4,7 +4,7 @@ TERMUX_PKG_LICENSE="GPL-3.0"
 TERMUX_PKG_MAINTAINER="@termux"
 # Please align version with `ffplay` package.
 TERMUX_PKG_VERSION="8.1.2"
-TERMUX_PKG_REVISION=1
+TERMUX_PKG_REVISION=2
 TERMUX_PKG_SRCURL="https://www.ffmpeg.org/releases/ffmpeg-${TERMUX_PKG_VERSION}.tar.xz"
 TERMUX_PKG_SHA256=464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c
 # LEAN build for yt-dlp on youtubedl-android: yt-dlp does stream-copy / mux / remux / merge /
@@ -13,6 +13,10 @@ TERMUX_PKG_SHA256=464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b52
 # exotic libs are dropped; ffmpeg's built-in demuxers/decoders + native muxers cover the rest.
 # libxml2 is also dropped (it pulls ICU's ~33MB libicudata; yt-dlp handles DASH itself). Kept:
 # openssl (https/tls), libwebp (thumbnails), and the bz2/lzma/iconv/zlib infra demuxers use.
+# --enable-jni/--enable-mediacodec are also dropped: they make libavcodec NEED libandroid/
+# libmediandk, which pull the system libskia.so -> on some API-23 images libskia has an
+# unresolved png_set_seek_fn and the whole executable fails to link. yt-dlp never uses hardware
+# decode, so dropping them removes that fragile system-graphics coupling.
 TERMUX_PKG_DEPENDS="libandroid-glob, libandroid-stub, libbz2, libiconv, liblzma, libwebp, openssl, zlib"
 TERMUX_PKG_CONFLICTS="libav"
 TERMUX_PKG_BREAKS="ffmpeg-dev"
@@ -89,8 +93,6 @@ termux_step_configure() {
 		--enable-cross-compile \
 		--enable-gpl \
 		--enable-version3 \
-		--enable-jni \
-		--enable-mediacodec \
 		--enable-openssl \
 		--enable-libwebp \
 		--enable-shared \
