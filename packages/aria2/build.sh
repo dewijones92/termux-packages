@@ -3,7 +3,7 @@ TERMUX_PKG_DESCRIPTION="Download utility supporting HTTP/HTTPS, FTP, BitTorrent 
 TERMUX_PKG_LICENSE="GPL-2.0"
 TERMUX_PKG_MAINTAINER="@termux"
 TERMUX_PKG_VERSION="1.37.0"
-TERMUX_PKG_REVISION=6
+TERMUX_PKG_REVISION=7
 TERMUX_PKG_SRCURL="https://github.com/aria2/aria2/releases/download/release-${TERMUX_PKG_VERSION}/aria2-${TERMUX_PKG_VERSION}.tar.xz"
 TERMUX_PKG_SHA256=60a420ad7085eb616cb6e2bdf0a7206d68ff3d37fb5a956dc44242eb2f79b66b
 TERMUX_PKG_AUTO_UPDATE=true
@@ -33,6 +33,15 @@ ac_cv_search_getaddrinfo=no
 ac_cv_func_getifaddrs=no
 ac_cv_func_freeifaddrs=no
 "
+
+termux_step_post_get_source() {
+	# aria2 aborts at startup if OpenSSL 3's legacy provider (RC4) can't load. We don't bundle
+	# ossl-modules/legacy.so in the youtubedl-android API-23 runtime; yt-dlp only does HTTP(S)
+	# downloads (default provider), so make it non-fatal: neuter just the throw. legacy_provider_
+	# stays null and tearDown() already null-checks before OSSL_PROVIDER_unload.
+	sed -i 's|throw DL_ABORT_EX("OSSL_PROVIDER_load '\''legacy'\'' failed.");|/* legacy provider optional - youtubedl-android API-23, RC4 unused */;|' src/Platform.cc
+	grep -q 'legacy provider optional' src/Platform.cc || termux_error_exit "aria2 legacy-provider patch did not apply (upstream changed?)"
+}
 
 termux_step_pre_configure() {
 	if [ "$TERMUX_ARCH" = "arm" ]; then
