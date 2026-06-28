@@ -4,10 +4,16 @@ TERMUX_PKG_LICENSE="GPL-3.0"
 TERMUX_PKG_MAINTAINER="@termux"
 # Please align version with `ffplay` package.
 TERMUX_PKG_VERSION="8.1.2"
+TERMUX_PKG_REVISION=1
 TERMUX_PKG_SRCURL="https://www.ffmpeg.org/releases/ffmpeg-${TERMUX_PKG_VERSION}.tar.xz"
 TERMUX_PKG_SHA256=464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c
-TERMUX_PKG_DEPENDS="fontconfig, freetype, fribidi, game-music-emu, glslang, harfbuzz, libaom, libandroid-glob, libandroid-stub, libass, libbluray, libbs2b, libbz2, libdav1d, libiconv, liblzma, libmysofa, libmp3lame, libopencore-amr, libopenmpt, libopus, libplacebo, librav1e, libsoxr, libtheora, libv4l, libvidstab, libvmaf, libvo-amrwbenc, libvorbis, libvpx, libwebp, libx264, libx265, libxml2, libzimg, littlecms, ocl-icd, openssl, rubberband, svt-av1, vulkan-icd, xvidcore, zlib"
-TERMUX_PKG_BUILD_DEPENDS="opencl-headers, vulkan-headers"
+# LEAN build for yt-dlp on youtubedl-android: yt-dlp does stream-copy / mux / remux / merge /
+# sponsorblock-cut / thumbnail-embed — never video re-encoding. So all external A/V *encoders*
+# (x264/x265/aom/rav1e/svt-av1/xvid/vpx/theora/lame/opus/vorbis/amr/...) and the subtitle/filter/
+# exotic libs are dropped; ffmpeg's built-in demuxers/decoders + native muxers cover the rest.
+# libxml2 is also dropped (it pulls ICU's ~33MB libicudata; yt-dlp handles DASH itself). Kept:
+# openssl (https/tls), libwebp (thumbnails), and the bz2/lzma/iconv/zlib infra demuxers use.
+TERMUX_PKG_DEPENDS="libandroid-glob, libandroid-stub, libbz2, libiconv, liblzma, libwebp, openssl, zlib"
 TERMUX_PKG_CONFLICTS="libav"
 TERMUX_PKG_BREAKS="ffmpeg-dev"
 TERMUX_PKG_REPLACES="ffmpeg-dev"
@@ -79,54 +85,18 @@ termux_step_configure() {
 		--enable-indev=lavfi \
 		--disable-static \
 		--disable-symver \
+		--disable-doc \
 		--enable-cross-compile \
 		--enable-gpl \
 		--enable-version3 \
 		--enable-jni \
-		--enable-lcms2 \
-		--enable-libaom \
-		--enable-libass \
-		--enable-libbluray \
-		--enable-libbs2b \
-		--enable-libdav1d \
-		--enable-libfontconfig \
-		--enable-libfreetype \
-		--enable-libfribidi \
-		--enable-libglslang \
-		--enable-libgme \
-		--enable-libharfbuzz \
-		--enable-libmysofa \
-		--enable-libmp3lame \
-		--enable-libopencore-amrnb \
-		--enable-libopencore-amrwb \
-		--enable-libopenmpt \
-		--enable-libopus \
-		--enable-libplacebo \
-		--enable-librav1e \
-		--enable-librubberband \
-		--enable-libsoxr \
-		--enable-libsvtav1 \
-		--enable-libtheora \
-		--enable-libv4l2 \
-		--enable-libvidstab \
-		--enable-libvmaf \
-		--enable-libvo-amrwbenc \
-		--enable-libvorbis \
-		--enable-libvpx \
-		--enable-libwebp \
-		--enable-libx264 \
-		--enable-libx265 \
-		--enable-libxml2 \
-		--enable-libxvid \
-		--enable-libzimg \
 		--enable-mediacodec \
-		--enable-opencl \
 		--enable-openssl \
+		--enable-libwebp \
 		--enable-shared \
 		--prefix="$TERMUX_PREFIX" \
 		--target-os=android \
 		--extra-libs="-landroid-glob" \
-		--enable-vulkan \
 		$_EXTRA_CONFIGURE_FLAGS \
 		--disable-libfdk-aac
 	# GPLed FFmpeg binaries linked against fdk-aac are not redistributable.
