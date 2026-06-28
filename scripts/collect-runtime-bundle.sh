@@ -45,6 +45,22 @@ fi
 if [ -n "$STRIP_BIN" ]; then echo "strip: using $STRIP_BIN"; else echo "strip: WARNING llvm-strip not found — bundles will be unstripped"; fi
 strip_elf() { [ -n "$STRIP_BIN" ] && "$STRIP_BIN" --strip-unneeded "$1" 2>/dev/null || true; }
 
+# Termux's libc++ package is built for API 24+, so its libc++_shared.so references fseeko/ftello
+# (bionic added them at API 24) as GLOBAL undefined — a hard load failure on API 23. The NDK
+# standalone-toolchain's libc++_shared.so is API-21-compatible (uses fseek/ftell fallbacks), so
+# bundle THAT instead. Locate it for this arch.
+declare -A NDK_TRIPLE=( [aarch64]=aarch64-linux-android [x86_64]=x86_64-linux-android [arm]=arm-linux-androideabi [i686]=i686-linux-android )
+NDK_LIBCXX=""
+for c in "${HOME:-/home/builder}"/.termux-build/_cache/*api-23*/sysroot/usr/lib/"${NDK_TRIPLE[$ARCH]}"/libc++_shared.so \
+         /root/.termux-build/_cache/*api-23*/sysroot/usr/lib/"${NDK_TRIPLE[$ARCH]}"/libc++_shared.so; do
+  [ -f "$c" ] && { NDK_LIBCXX="$c"; break; }
+done
+if [ -n "$NDK_LIBCXX" ]; then
+  echo "libc++: API-23 toolchain copy at $NDK_LIBCXX (fseeko global refs: $(readelf --dyn-syms "$NDK_LIBCXX" 2>/dev/null | awk '$5=="GLOBAL"&&$7=="UND"' | grep -ic 'fseeko\|ftello' || true))"
+else
+  echo "libc++: WARNING no API-23 toolchain libc++_shared.so found — keeping the package copy"
+fi
+
 declare -A SEEN   # realpath -> 1
 
 # Recursively add a soname's resolved file (and its dependencies) to SEEN.
@@ -92,6 +108,11 @@ collect() {
       [ "$(readlink -f "$l")" = "$real" ] && cp -a "$l" "$stage/usr/lib/" 2>/dev/null || true
     done < <(find "$LIB" -maxdepth 1 -type l)
   done
+
+  # Swap the API-24 package libc++_shared.so for the API-23 toolchain one (see above).
+  if [ -n "$NDK_LIBCXX" ] && [ -f "$stage/usr/lib/libc++_shared.so" ]; then
+    cp -f "$NDK_LIBCXX" "$stage/usr/lib/libc++_shared.so"
+  fi
 
   if [ "$withstdlib" = yes ]; then
     cp -a "$LIB"/python3.* "$stage/usr/lib/" 2>/dev/null || true
