@@ -77,12 +77,25 @@ jobs:
           echo "Building: $PKGS  (arch=${{ matrix.target_arch }}, API 23)"
           ./scripts/run-docker.sh ./build-package.sh -I -C -a "${{ matrix.target_arch }}" $PKGS
 
+      - name: Assemble self-contained runtime bundles (L1->L3 contract)
+        env:
+          TERMUX_BUILDER_IMAGE_NAME: ${{ env.BUILDER_IMAGE }}
+        run: |
+          set -euo pipefail
+          # Runs in the SAME builder container the build used, so the prefix still holds the
+          # built packages + their extracted dependency closure. Emits per-module bundles.
+          ./scripts/run-docker.sh ./scripts/collect-runtime-bundle.sh "${{ matrix.target_arch }}"
+
       - name: Collect artifacts + checksums
         run: |
           set -euo pipefail
           mkdir -p out
-          find output -type f -name '*.deb' -exec cp -v {} out/ \;
-          test -n "$(ls -A out)" || { echo "no .deb produced"; exit 1; }
+          find output -type f -name '*.deb'  -exec cp -v {} out/ \;
+          find output -type f -name 'bundle-*.tar' -exec cp -v {} out/ \;
+          find output -type f -name 'BUNDLES-SHA256-*.txt' -exec cp -v {} out/ \;
+          test -n "$(ls -A out)" || { echo "no artifacts produced"; exit 1; }
+          # Bundles are the L3-consumed artifact and must exist for every release.
+          test -n "$(ls out/bundle-*.tar 2>/dev/null)" || { echo "no runtime bundles produced"; exit 1; }
           ( cd out && sha256sum *.deb | sort -k2 | tee "SHA256SUMS-${{ matrix.target_arch }}.txt" )
 
       - name: Upload build artifact (CI inspection)
@@ -97,7 +110,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/native-v')
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: "out/*.deb"
+          subject-path: "out/*.deb, out/bundle-*.tar"
 
       - name: Publish to Release
         if: startsWith(github.ref, 'refs/tags/native-v')
@@ -105,4 +118,6 @@ jobs:
         with:
           files: |
             out/*.deb
+            out/bundle-*.tar
             out/SHA256SUMS-*.txt
+            out/BUNDLES-SHA256-*.txt
