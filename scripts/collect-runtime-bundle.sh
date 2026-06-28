@@ -29,8 +29,20 @@ needed_of() { readelf -d "$1" 2>/dev/null | awk -F'[][]' '/\(NEEDED\)/ {print $2
 # The build prefix is unstripped (debug symbols) — the .debs are stripped at massage time, but we
 # assemble from the prefix, so strip here too (cross-arch via llvm-strip). --strip-unneeded keeps
 # .dynsym (needed for runtime linking) while dropping debug/local symbols.
+# llvm-strip is on PATH during the build (NDK toolchain) but not in this separate exec, so locate
+# it. Guard every pipe with `|| true` so set -e/pipefail doesn't kill us on a permission-denied dir.
 STRIP_BIN="$(command -v llvm-strip 2>/dev/null || true)"
-[ -z "$STRIP_BIN" ] && STRIP_BIN="$(find /root /home /opt /usr -name llvm-strip -type f 2>/dev/null | head -1)"
+if [ -z "$STRIP_BIN" ]; then
+  # Fast path: the Termux standalone toolchain ($TERMUX_TOPDIR/_cache/android-r*-api-*/bin).
+  for c in "${HOME:-/home/builder}"/.termux-build/_cache/*/bin/llvm-strip \
+           /root/.termux-build/_cache/*/bin/llvm-strip; do
+    [ -x "$c" ] && { STRIP_BIN="$c"; break; }
+  done
+fi
+if [ -z "$STRIP_BIN" ]; then
+  STRIP_BIN="$( { find / -name llvm-strip -type f 2>/dev/null || true; } | head -n1 || true )"
+fi
+if [ -n "$STRIP_BIN" ]; then echo "strip: using $STRIP_BIN"; else echo "strip: WARNING llvm-strip not found — bundles will be unstripped"; fi
 strip_elf() { [ -n "$STRIP_BIN" ] && "$STRIP_BIN" --strip-unneeded "$1" 2>/dev/null || true; }
 
 declare -A SEEN   # realpath -> 1
